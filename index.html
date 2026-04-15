@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Coffee Leaf Disease Detector</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cream:  #fdf6ec;
+      --brown:  #3b1f0e;
+      --coffee: #6f3d1f;
+      --gold:   #c8902a;
+      --light:  #f5ede0;
+      --card:   #fffaf4;
+      --border: #e8d5bc;
+      --shadow: rgba(59,31,14,0.12);
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--cream);
+      color: var(--brown);
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 10% 20%, rgba(111,61,31,0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 90% 80%, rgba(200,144,42,0.08) 0%, transparent 50%);
+    }
+
+    header {
+      text-align: center;
+      padding: 48px 24px 32px;
+    }
+    .leaf-icon { font-size: 48px; display: block; margin-bottom: 12px; animation: float 3s ease-in-out infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    h1 { font-family:'Playfair Display',serif; font-size:clamp(1.8rem,5vw,3rem); font-weight:900; line-height:1.1; margin-bottom:8px; }
+    h1 span { color: var(--gold); }
+    .subtitle { font-size:.95rem; color:var(--coffee); font-weight:300; }
+
+    .container { max-width: 860px; margin: 0 auto; padding: 0 20px 60px; }
+
+    /* ── UPLOAD CARD ── */
+    .card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 24px;
+      padding: 36px;
+      box-shadow: 0 8px 40px var(--shadow);
+      margin-bottom: 24px;
+    }
+
+    .upload-zone {
+      border: 2.5px dashed var(--border);
+      border-radius: 16px;
+      padding: 44px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .3s ease;
+      background: var(--light);
+      position: relative;
+      overflow: hidden;
+    }
+    .upload-zone:hover, .upload-zone.dragover { border-color:var(--gold); background:#fef9f0; transform:scale(1.01); }
+    .upload-zone input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+    .upload-icon { font-size:48px; margin-bottom:14px; display:block; }
+    .upload-title { font-family:'Playfair Display',serif; font-size:1.2rem; font-weight:700; margin-bottom:6px; }
+    .upload-sub { font-size:.85rem; color:var(--coffee); }
+
+    #preview-section { display:none; margin-top:20px; text-align:center; }
+    #preview-section img { max-height:260px; max-width:100%; border-radius:12px; border:1.5px solid var(--border); object-fit:contain; background:var(--light); }
+    .preview-name { font-size:.82rem; color:var(--coffee); margin-top:6px; }
+
+    .btn {
+      display:block; width:100%; margin-top:20px; padding:16px;
+      background:var(--brown); color:var(--cream);
+      font-family:'DM Sans',sans-serif; font-size:1rem; font-weight:500;
+      letter-spacing:.05em; border:none; border-radius:12px;
+      cursor:pointer; transition:all .25s ease;
+    }
+    .btn:hover:not(:disabled) { background:var(--coffee); transform:translateY(-2px); box-shadow:0 6px 20px var(--shadow); }
+    .btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+
+    #loader { display:none; text-align:center; padding:28px 0; }
+    .spinner { width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 10px; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+
+    .error-box { display:none; background:#fff1f1; border:1.5px solid #fca5a5; border-radius:12px; padding:14px 18px; color:#b91c1c; font-size:.9rem; margin-top:14px; }
+
+    /* ── RESULT SECTION ── */
+    #result-section { display:none; }
+
+    /* Top result banner */
+    .result-banner {
+      border-radius: 20px;
+      padding: 28px;
+      margin-bottom: 20px;
+      border: 1.5px solid;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      animation: slideIn .4s ease;
+    }
+    @keyframes slideIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+    .result-emoji { font-size: 52px; flex-shrink: 0; }
+    .result-label { font-size:.72rem; font-weight:500; letter-spacing:.12em; text-transform:uppercase; opacity:.65; margin-bottom:4px; }
+    .result-name { font-family:'Playfair Display',serif; font-size:2rem; font-weight:900; line-height:1; margin-bottom:6px; }
+    .result-conf { font-size:.9rem; opacity:.7; }
+
+    /* Severity badge */
+    .severity-badge {
+      display: inline-block;
+      padding: 4px 14px;
+      border-radius: 99px;
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      margin-top: 8px;
+    }
+
+    /* ── SOLUTION CARDS ── */
+    .solution-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media(max-width:580px) { .solution-grid { grid-template-columns:1fr; } }
+
+    .sol-card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 16px var(--shadow);
+      animation: slideIn .5s ease;
+    }
+    .sol-card.full { grid-column: 1 / -1; }
+    .sol-header { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+    .sol-icon { font-size:24px; }
+    .sol-title { font-family:'Playfair Display',serif; font-size:1.05rem; font-weight:700; color:var(--brown); }
+
+    /* Cause */
+    .cause-text { font-size:.9rem; line-height:1.7; color:var(--coffee); }
+
+    /* Steps */
+    .steps-list { list-style:none; }
+    .steps-list li {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: .88rem;
+      line-height: 1.5;
+      color: var(--brown);
+    }
+    .steps-list li:last-child { border-bottom: none; }
+    .step-num {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: var(--brown);
+      color: var(--cream);
+      font-size: .72rem;
+      font-weight: 700;
+      display: flex; align-items:center; justify-content:center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* Products */
+    .products-list { display:flex; flex-wrap:wrap; gap:8px; }
+    .product-tag {
+      background: var(--light);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: .8rem;
+      color: var(--brown);
+      font-weight: 500;
+    }
+
+    /* Prevention */
+    .prevention-list { list-style:none; }
+    .prevention-list li {
+      display:flex; gap:10px; align-items:flex-start;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: .88rem;
+      color: var(--brown);
+      line-height: 1.5;
+    }
+    .prevention-list li:last-child { border-bottom:none; }
+    .check { color: #22c55e; font-size:1rem; margin-top:1px; flex-shrink:0; }
+
+    /* Probability bars */
+    .prob-card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 16px var(--shadow);
+      margin-bottom: 20px;
+    }
+    .prob-card h3 { font-family:'Playfair Display',serif; font-size:1.05rem; margin-bottom:14px; }
+    .prob-row { margin-bottom:10px; }
+    .prob-top { display:flex; justify-content:space-between; font-size:.85rem; margin-bottom:4px; }
+    .prob-bar-bg { height:8px; background:var(--border); border-radius:99px; overflow:hidden; }
+    .prob-bar-fill { height:100%; border-radius:99px; background:var(--gold); transition:width .8s cubic-bezier(.4,0,.2,1); width:0%; }
+    .prob-bar-fill.top { background:var(--brown); }
+
+    .btn-reset {
+      display:block; width:100%; padding:13px;
+      background:transparent; color:var(--coffee);
+      border:1.5px solid var(--border); border-radius:12px;
+      font-family:'DM Sans',sans-serif; font-size:.9rem;
+      cursor:pointer; transition:all .2s;
+    }
+    .btn-reset:hover { border-color:var(--coffee); background:var(--light); }
+
+    .legend { display:flex; flex-wrap:wrap; gap:8px; margin-top:24px; justify-content:center; }
+    .legend-item { font-size:.75rem; padding:4px 12px; border-radius:99px; border:1px solid var(--border); color:var(--coffee); background:var(--light); }
+
+    footer { text-align:center; padding:20px; font-size:.78rem; color:var(--coffee); opacity:.6; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="leaf-icon">🍃</span>
+  <h1>Coffee Leaf<br/><span>Disease Detector</span></h1>
+  <p class="subtitle">Upload a leaf photo — AI identifies the disease and tells you exactly how to fix it</p>
+</header>
+
+<div class="container">
+
+  <!-- Upload Card -->
+  <div class="card">
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept=".jpg,.jpeg,.png,.webp"/>
+      <span class="upload-icon">📷</span>
+      <div class="upload-title">Drop your leaf image here</div>
+      <div class="upload-sub">or click to browse · JPG, PNG, WEBP</div>
+    </div>
+    <div id="preview-section">
+      <img id="preview-img" src="" alt="Leaf preview"/>
+      <p class="preview-name" id="preview-name"></p>
+    </div>
+    <div class="error-box" id="error-box"></div>
+    <button class="btn" id="analyze-btn" disabled>🔍 Analyze Leaf</button>
+    <div id="loader"><div class="spinner"></div><p style="color:var(--coffee);font-size:.9rem">Analyzing your leaf...</p></div>
+  </div>
+
+  <!-- Results -->
+  <div id="result-section">
+
+    <!-- Banner -->
+    <div class="result-banner" id="result-banner">
+      <div class="result-emoji" id="result-emoji"></div>
+      <div>
+        <div class="result-label">Detected Condition</div>
+        <div class="result-name" id="result-name"></div>
+        <div class="result-conf" id="result-conf"></div>
+        <span class="severity-badge" id="severity-badge"></span>
+      </div>
+    </div>
+
+    <!-- Solution Grid -->
+    <div class="solution-grid" id="solution-grid"></div>
+
+    <!-- Probability Bars -->
+    <div class="prob-card">
+      <h3>📊 All Class Probabilities</h3>
+      <div id="prob-bars"></div>
+    </div>
+
+    <button class="btn-reset" id="reset-btn">🔄 Analyze Another Leaf</button>
+  </div>
+
+  <div class="legend">
+    <span class="legend-item">🟢 Healthy</span>
+    <span class="legend-item">🟡 Miner</span>
+    <span class="legend-item">🔴 Phoma</span>
+    <span class="legend-item">🔴 Rust</span>
+  </div>
+</div>
+
+<footer>Coffee Plant Disease Detection · Custom CNN Model · 95.25% Accuracy</footer>
+
+<script>
+// ── DISEASE DATABASE ──
+const DISEASE_DB = {
+  Healthy: {
+    emoji: "✅",
+    color: "#22c55e",
+    severity: "None",
+    severityColor: "#22c55e",
+    cause: "Your coffee plant leaf appears completely healthy. No signs of fungal, bacterial, or pest-related disease were detected. The leaf structure and color patterns look normal.",
+    steps: [
+      "Continue your regular watering schedule — avoid overwatering",
+      "Maintain proper fertilization every 4-6 weeks during growing season",
+      "Monitor leaves weekly for any early signs of discoloration",
+      "Ensure good air circulation around the plant"
+    ],
+    products: ["NPK Fertilizer", "Neem Oil (preventive)", "Compost"],
+    prevention: [
+      "Inspect new plants before introducing them near healthy ones",
+      "Keep tools clean and disinfected between uses",
+      "Maintain proper spacing between plants for airflow",
+      "Remove fallen leaves from the ground regularly",
+      "Water at the base, not on leaves"
+    ]
+  },
+  Miner: {
+    emoji: "⚠️",
+    color: "#f59e0b",
+    severity: "Moderate",
+    severityColor: "#d97706",
+    cause: "Leaf Miner (Leucoptera coffeella) — tiny moth larvae that hatch from eggs laid on the leaf surface and tunnel inside the leaf tissue, creating visible serpentine trails or blotches. Damage reduces photosynthesis and weakens the plant over time.",
+    steps: [
+      "Inspect all leaves and identify the extent of infestation",
+      "Remove and destroy all heavily infested leaves immediately — do not compost",
+      "Spray neem oil solution (5ml per litre of water) on all leaf surfaces",
+      "Apply systemic insecticide (Imidacloprid or Thiamethoxam) for severe cases",
+      "Repeat spray every 7-10 days for 3 weeks",
+      "After treatment, apply balanced fertilizer to help plant recover"
+    ],
+    products: ["Neem Oil", "Imidacloprid", "Thiamethoxam", "Spinosad", "Abamectin"],
+    prevention: [
+      "Introduce natural predators like parasitic wasps (Mirax insularis)",
+      "Use yellow sticky traps to monitor and catch adult moths",
+      "Apply preventive neem oil spray every 2 weeks during rainy season",
+      "Maintain plant health with proper nutrition — healthy plants resist better",
+      "Remove fallen leaves from ground immediately to break pest cycle",
+      "Avoid excessive nitrogen fertilizer which attracts pests"
+    ]
+  },
+  Phoma: {
+    emoji: "🔴",
+    color: "#ef4444",
+    severity: "Moderate to High",
+    severityColor: "#dc2626",
+    cause: "Phoma Leaf Spot (Phoma costarricensis) — a fungal disease favoured by high humidity, heavy rainfall, and poor air circulation. It causes dark brown to black circular spots with yellow halos on leaves, leading to premature leaf drop and reduced yield.",
+    steps: [
+      "Isolate affected plants immediately to prevent spreading",
+      "Remove all visibly infected leaves and dispose of them away from the farm — burn if possible",
+      "Apply copper-based fungicide (Copper Oxychloride or Bordeaux mixture) to all leaf surfaces",
+      "Spray systemic fungicide (Carbendazim or Propiconazole) for severe infections",
+      "Improve drainage around the plant base to reduce moisture",
+      "Repeat fungicide application every 10-14 days until symptoms stop spreading",
+      "After recovery, apply potassium-rich fertilizer to strengthen plant immunity"
+    ],
+    products: ["Copper Oxychloride", "Bordeaux Mixture", "Carbendazim", "Propiconazole", "Mancozeb"],
+    prevention: [
+      "Ensure good air circulation by pruning dense canopy branches",
+      "Avoid overhead irrigation — water at the base only",
+      "Apply preventive copper fungicide at the start of rainy season",
+      "Maintain proper plant spacing (minimum 2-3 metres between plants)",
+      "Keep the area under plants free of leaf litter",
+      "Choose resistant coffee varieties when replanting"
+    ]
+  },
+  Rust: {
+    emoji: "🚨",
+    color: "#dc2626",
+    severity: "High — Act Immediately",
+    severityColor: "#b91c1c",
+    cause: "Coffee Leaf Rust (Hemileia vastatrix) — the most destructive coffee disease worldwide. A fungal pathogen that produces orange-yellow powdery spore masses on the underside of leaves. Spreads rapidly in warm, humid conditions through wind and rain. Can cause up to 50-80% crop loss if untreated.",
+    steps: [
+      "Act immediately — delay worsens the outbreak significantly",
+      "Remove and burn all heavily infected leaves — never compost them",
+      "Apply triazole fungicide (Tebuconazole or Propiconazole) as the first response",
+      "Follow with copper-based fungicide (Copper Hydroxide) after 5 days",
+      "Spray the entire plant including undersides of all remaining leaves",
+      "Repeat treatment every 14 days for at least 2 months",
+      "Reduce shade if plants are under heavy canopy — rust thrives in shade",
+      "Apply foliar fertilizer (potassium + phosphorus) to boost plant immunity",
+      "Survey neighbouring plants and treat them preventively"
+    ],
+    products: ["Tebuconazole", "Propiconazole", "Copper Hydroxide", "Triadimefon", "Cyproconazole", "Oxycarboxin"],
+    prevention: [
+      "Plant rust-resistant varieties (Catimor, Colombia, Castillo)",
+      "Apply preventive fungicide sprays before and during rainy season",
+      "Prune to improve air circulation and reduce leaf wetness",
+      "Avoid high-nitrogen fertilization which makes plants more susceptible",
+      "Monitor plants every week — early detection is critical",
+      "Use certified disease-free seedlings only",
+      "Train farm workers to recognize early rust symptoms"
+    ]
+  }
+};
+
+// ── DOM ──
+const fileInput  = document.getElementById("file-input");
+const uploadZone = document.getElementById("upload-zone");
+const previewSec = document.getElementById("preview-section");
+const previewImg = document.getElementById("preview-img");
+const previewName= document.getElementById("preview-name");
+const analyzeBtn = document.getElementById("analyze-btn");
+const loader     = document.getElementById("loader");
+const resultSec  = document.getElementById("result-section");
+const errorBox   = document.getElementById("error-box");
+const resetBtn   = document.getElementById("reset-btn");
+
+// Drag & drop
+uploadZone.addEventListener("dragover", e => { e.preventDefault(); uploadZone.classList.add("dragover"); });
+uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("dragover"));
+uploadZone.addEventListener("drop", e => {
+  e.preventDefault(); uploadZone.classList.remove("dragover");
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener("change", () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  errorBox.style.display = "none";
+  resultSec.style.display = "none";
+  previewImg.src = URL.createObjectURL(file);
+  previewName.textContent = file.name;
+  previewSec.style.display = "block";
+  analyzeBtn.disabled = false;
+  window._selectedFile = file;
+}
+
+analyzeBtn.addEventListener("click", async () => {
+  if (!window._selectedFile) return;
+  analyzeBtn.disabled = true;
+  loader.style.display = "block";
+  resultSec.style.display = "none";
+  errorBox.style.display = "none";
+
+  const formData = new FormData();
+  formData.append("file", window._selectedFile);
+
+  try {
+    const res  = await fetch("/predict", { method:"POST", body:formData });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const db = DISEASE_DB[data.predicted_class];
+
+    // Banner
+    const banner = document.getElementById("result-banner");
+    banner.style.background = db.color + "12";
+    banner.style.borderColor = db.color + "40";
+    document.getElementById("result-emoji").textContent = db.emoji;
+    document.getElementById("result-name").textContent  = data.predicted_class;
+    document.getElementById("result-name").style.color  = db.color;
+    document.getElementById("result-conf").textContent  = `Confidence: ${data.confidence}%`;
+    const badge = document.getElementById("severity-badge");
+    badge.textContent = "Severity: " + db.severity;
+    badge.style.background = db.severityColor + "18";
+    badge.style.color = db.severityColor;
+    badge.style.border = `1px solid ${db.severityColor}44`;
+
+    // Solution cards
+    const grid = document.getElementById("solution-grid");
+    grid.innerHTML = `
+      <!-- Cause -->
+      <div class="sol-card full">
+        <div class="sol-header"><span class="sol-icon">🔬</span><span class="sol-title">What is this & Why it happens</span></div>
+        <p class="cause-text">${db.cause}</p>
+      </div>
+
+      <!-- Treatment Steps -->
+      <div class="sol-card full">
+        <div class="sol-header"><span class="sol-icon">💊</span><span class="sol-title">Step-by-Step Treatment</span></div>
+        <ul class="steps-list">
+          ${db.steps.map((s,i) => `<li><span class="step-num">${i+1}</span><span>${s}</span></li>`).join("")}
+        </ul>
+      </div>
+
+      <!-- Products -->
+      <div class="sol-card">
+        <div class="sol-header"><span class="sol-icon">🧪</span><span class="sol-title">Recommended Products</span></div>
+        <div class="products-list">
+          ${db.products.map(p => `<span class="product-tag">💊 ${p}</span>`).join("")}
+        </div>
+      </div>
+
+      <!-- Prevention -->
+      <div class="sol-card">
+        <div class="sol-header"><span class="sol-icon">🛡️</span><span class="sol-title">Prevention Tips</span></div>
+        <ul class="prevention-list">
+          ${db.prevention.map(p => `<li><span class="check">✓</span><span>${p}</span></li>`).join("")}
+        </ul>
+      </div>
+    `;
+
+    // Probability bars
+    const barsDiv = document.getElementById("prob-bars");
+    barsDiv.innerHTML = "";
+    data.all_probabilities.forEach((item, i) => {
+      const div = document.createElement("div");
+      div.className = "prob-row";
+      div.innerHTML = `
+        <div class="prob-top"><span>${item.class}</span><span>${item.confidence}%</span></div>
+        <div class="prob-bar-bg"><div class="prob-bar-fill ${i===0?'top':''}" data-width="${item.confidence}"></div></div>`;
+      barsDiv.appendChild(div);
+    });
+
+    loader.style.display = "none";
+    resultSec.style.display = "block";
+    setTimeout(() => {
+      document.querySelectorAll(".prob-bar-fill").forEach(b => b.style.width = b.dataset.width + "%");
+    }, 80);
+
+    resultSec.scrollIntoView({ behavior:"smooth", block:"start" });
+
+  } catch(err) {
+    loader.style.display = "none";
+    analyzeBtn.disabled = false;
+    errorBox.textContent = "Error: " + err.message;
+    errorBox.style.display = "block";
+  }
+});
+
+resetBtn.addEventListener("click", () => {
+  window._selectedFile = null;
+  fileInput.value = "";
+  previewSec.style.display = "none";
+  resultSec.style.display  = "none";
+  errorBox.style.display   = "none";
+  analyzeBtn.disabled = true;
+  previewImg.src = "";
+  window.scrollTo({ top:0, behavior:"smooth" });
+});
+</script>
+</body>
+</html>
